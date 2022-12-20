@@ -25,13 +25,13 @@ defmodule Statistic.BarChart do
     colour_palette: :default,
     phx_event_handler: nil,
     phx_event_target: nil,
-    select_item: nil
+    select_item: nil,
+    colour_pattern: :category
   ]
 
   def new(%Dataset{} = dataset, options \\ []) do
     options = Keyword.merge(@default_options, options)
     mapping = Mapping.new(@required_mappings, Keyword.get(options, :mapping), dataset)
-
     %BarChart{dataset: dataset, mapping: mapping, options: options}
   end
 
@@ -70,7 +70,7 @@ defmodule Statistic.BarChart do
 
     val_axis_svg = if plot_options.show_val_axis, do: Axis.to_svg(value_axis), else: ""
 
-    [cat_axis_svg, val_axis_svg, "<g>", get_svg_bars(plot), "</g>"]
+    [cat_axis_svg, val_axis_svg, "<g>", get_svg_bars(plot, get_option(plot, :colour_pattern)), "</g>"]
   end
 
   defp refine_options(options, :horizontal) do
@@ -113,22 +113,26 @@ defmodule Statistic.BarChart do
     |> Axis.set_offset(get_option(plot, :width))
   end
 
-  defp get_svg_bars(%BarChart{mapping: %{column_map: column_map}, dataset: dataset} = plot) do
-    series_fill_colours = plot.series_fill_colours
+  defp get_svg_bars(%BarChart{mapping: %{column_map: column_map}, dataset: dataset} = plot, :category) do
+    fills = Enum.map(column_map.value_cols, fn column -> CategoryColourScale.colour_for_value(plot.series_fill_colours, column) end)
+    dataset.data |> Enum.map(fn row -> get_svg_bar(row, plot, fills) end)
+  end
 
-    fills =
-      Enum.map(column_map.value_cols, fn column ->
-        CategoryColourScale.colour_for_value(series_fill_colours, column)
-      end)
+  defp get_svg_bars(%BarChart{mapping: %{column_map: column_map}, dataset: dataset} = plot, _) do
+    cat_accessor = dataset |> Dataset.value_fn(column_map[:category_col])
+
+    palette = dataset.data
+      |> Enum.map(&cat_accessor.(&1))
+      |> CategoryColourScale.new()
+      |> CategoryColourScale.set_palette(get_option(plot, :colour_palette))
 
     dataset.data
-    |> Enum.map(fn row -> get_svg_bar(row, plot, fills) end)
+      |> Enum.map(fn row -> get_svg_bar(row, plot, Enum.map(column_map.value_cols, fn _ -> CategoryColourScale.colour_for_value(palette, cat_accessor.(row)) end)) end)
   end
 
   defp get_svg_bar(row, %BarChart{mapping: mapping, category_scale: category_scale, value_scale: value_scale} = plot, fills) do
     cat_data = mapping.accessors.category_col.(row)
     series_values = Enum.map(mapping.accessors.value_cols, fn value_col -> value_col.(row) end)
-
     cat_band = OrdinalScale.get_band(category_scale, cat_data)
     bar_values = prepare_bar_values(series_values, value_scale, get_option(plot, :type))
     labels = Enum.map(series_values, fn val -> Scale.get_formatted_tick(value_scale, val) end)

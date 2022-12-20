@@ -29,6 +29,43 @@ defmodule Statistic.Axis do
       "</g>"
     ]
   end
+  
+  def gridlines_to_svg(%Axis{} = axis) do
+    [
+      "<g> ",
+      get_svg_gridlines(axis),
+      "</g>"
+    ]
+  end
+
+  defp get_svg_gridlines(%Axis{scale: scale} = axis) do
+    domain_ticks = Scale.ticks_domain(scale)
+    domain_to_range_fn = Scale.domain_to_range_fn(scale)
+
+    domain_ticks
+    # Don't render first tick as it should be on the axis
+    |> Enum.drop(1)
+    |> Enum.map(fn tick -> get_svg_gridline(axis, domain_to_range_fn.(tick)) end)
+  end
+
+  defp get_svg_gridline(%Axis{offset: offset} = axis, location) do
+    dim_length = get_tick_dimension(axis)
+
+    dim_constant =
+      case dim_length do
+        "x" -> "y"
+        "y" -> "x"
+      end
+
+    # Nudge to render better
+    location = location + 0.5
+
+    [
+      ~s|<line class="exc-grid" stroke-dasharray="3,3"|,
+      ~s| #{dim_constant}1="#{location}" #{dim_constant}2="#{location}"|,
+      ~s| #{dim_length}1="0" #{dim_length}2="#{offset}"></line>|
+    ]
+  end
 
   defp get_svg_axis_location(%Axis{orientation: :bottom, offset: offset}), do:
     "transform=\"translate(0, #{offset})\""

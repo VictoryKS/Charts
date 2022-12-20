@@ -7,7 +7,7 @@ defmodule Statistic.PieChart do
 
   @required_mappings [category_col: :zero_or_one, value_col: :zero_or_one]
 
-  @default_options [width: 600, height: 400, colour_palette: :default, colour_scale: nil, data_labels: true]
+  @default_options [width: 600, height: 400, colour_palette: :default, colour_scale: nil, data_labels: true, inner_text: []]
 
   def new(%Dataset{} = dataset, options \\ []) do
     options = check_options(options)
@@ -67,12 +67,29 @@ defmodule Statistic.PieChart do
     height = get_option(chart, :height)
     with_labels? = get_option(chart, :data_labels)
     colour_palette = get_colour_palette(chart)
+    inner_text = get_option(chart, :inner_text)
 
     r = height / 2
     stroke_circumference = 2 * :math.pi() * r / 2
 
+    inner_circle =
+      case inner_text do
+        [] -> []
+        x ->
+          ["<circle r=\"#{r / 6}\" cx=\"#{r}\" cy=\"#{r}\" fill=\"transparent\" " <>
+            "stroke=\"white\" " <>
+            "stroke-width=\"#{2 * r / 3}\">" <>
+           "</circle>" <>
+           "<text x=\"#{r}\" y=\"#{r}\" " <>
+             "text-anchor=\"middle\" " <>
+             "fill=\"black\" " <>
+             "class=\"piechart-inner\" " <>
+             "stroke-width=\"1\" " <>
+           ">#{inner_text(x, r, r / 3)}</text>"]
+      end
+
     scale_values(chart)
-    |> Enum.map_reduce({0, 0}, fn {value, category}, {idx, offset} ->
+    |> Enum.map_reduce({0, 0}, fn {value, category, data}, {idx, offset} ->
       text_rotation = rotate_for(value, offset)
 
       label =
@@ -81,11 +98,12 @@ defmodule Statistic.PieChart do
             "y=\"#{negate_if_flipped(r, text_rotation)}\" " <>
             "text-anchor=\"middle\" " <>
             "fill=\"white\" " <>
+            "class=\"piechart-label\" " <>
             "stroke-width=\"1\" " <>
             "transform=\"rotate(#{text_rotation}, #{r}, #{r}) " <>
-              "translate(#{r / 2}, #{negate_if_flipped(5, text_rotation)}) " <>
+              "translate(#{3 * r / 4}, #{negate_if_flipped(5, text_rotation)}) " <>
               "#{if need_flip?(text_rotation), do: "scale(-1,-1)"}\">" <>
-          "#{Float.round(value, 2)}%</text>"
+          "#{data}</text>"
         else
           ""
         end
@@ -96,14 +114,29 @@ defmodule Statistic.PieChart do
           "stroke-width=\"#{r}\"" <>
           "stroke-dasharray=\"#{slice_value(value, stroke_circumference)} #{stroke_circumference}\"" <>
           "stroke-dashoffset=\"-#{slice_value(offset, stroke_circumference)}\">" <>
-        "</circle>#{label}",
+        "<title>#{data}</title></circle>#{label}",
         {idx + 1, offset + value}
       }
     end)
     |> elem(0)
+    |> Enum.concat(inner_circle)
     |> Enum.join()
   end
 
+  defp inner_text(text, _r, _) when is_binary(text), do: text
+  defp inner_text(text, r, slice) do
+    n = length(text) - 1
+    Enum.reduce(text, {"", 0.0},
+      fn {t, class}, {acc, count} -> {acc <> "<tspan x=\"#{r}\" y=\"#{inner_y(count, n / 2, r, slice / n)}\" class=\"#{class}\">#{t}</tspan>", count + 1.0}
+         t, {acc, count} when is_binary(t) -> {acc <> "<tspan x=\"#{r}\" y=\"#{inner_y(count, n / 2, r, slice / n)}\">#{t}</tspan>", count + 1.0}
+         _, acc -> acc
+      end) |> elem(0)
+  end
+  
+  defp inner_y(count, count, r, _slice), do: r
+  defp inner_y(count, n, r, slice) when count < n, do: r - slice * (count + 1)
+  defp inner_y(count, n, r, slice) when count > n, do: r + slice * (count + 1 - n * 2)
+      
   defp slice_value(value, stroke_circumference), do: value * stroke_circumference / 100
 
   defp rotate_for(n, offset), do: n / 2 * 3.6 + offset * 3.6
@@ -123,7 +156,7 @@ defmodule Statistic.PieChart do
     sum = dataset.data |> Enum.reduce(0, fn col, acc -> val_accessor.(col) + acc end)
 
     dataset.data
-    |> Enum.map_reduce(sum, &{{val_accessor.(&1) / &2 * 100, cat_accessor.(&1)}, &2})
+    |> Enum.map_reduce(sum, &{{val_accessor.(&1) / &2 * 100, cat_accessor.(&1), val_accessor.(&1)}, &2})
     |> elem(0)
   end
 end

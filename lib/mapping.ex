@@ -16,6 +16,19 @@ defmodule Statistic.Mapping do
     }
   end
 
+  def update(
+        %__MODULE__{expected_mappings: expected_mappings, dataset: dataset} = mapping,
+        updated_mappings
+      ) do
+    column_map =
+      Map.merge(mapping.column_map, updated_mappings)
+      |> check_mappings(expected_mappings, dataset)
+
+    mapped_accessors = accessors(dataset, column_map)
+
+    %{mapping | column_map: column_map, accessors: mapped_accessors}
+  end
+
   defp check_mappings(nil, expected_mappings, %Dataset{} = dataset), do:
     check_mappings(default_mapping(expected_mappings, dataset), expected_mappings, dataset)
   defp check_mappings(mappings, expected_mappings, %Dataset{} = dataset), do:
@@ -102,5 +115,3 @@ defmodule Statistic.Mapping do
   defp accessor(_, nil), do: fn _ -> nil end
   defp accessor(dataset, column), do: Dataset.value_fn(dataset, column)
 end
-
-
