@@ -24,30 +24,42 @@ defmodule Statistic.SVG do
     ]
   end
 
-  def line(points, smoothed, opts \\ []) do
+  def line(points, smoothed, opts \\ [])
+  def line([{_, _, _} | _] = points, _, opts) do
+    attrs = opts_to_attrs(opts)
+    path = :lists.foldr(fn {p, smoothed, initial}, acc -> [path(p, smoothed, initial) | acc]; _ , acc -> acc end, [], points)
+
+    ["<path d=\"", path, "\"", attrs, "></path>"]
+  end
+
+  def line(points, smoothed, opts) do
     attrs = opts_to_attrs(opts)
     path = path(points, smoothed)
 
     ["<path d=\"", path, "\"", attrs, "></path>"]
   end
 
-  defp path([], _), do: ""
-  defp path(points, false) do
-    Enum.reduce(points, :first, fn {x, y}, acc ->
+  defp path([], _, initial \\ :first)
+  defp path([], _, _), do: ""
+  defp path(points, false, initial) do
+    Enum.reduce(points, initial, fn {x, y}, acc ->
       coord = "#{x} #{y}"
 
       case acc do
         :first -> ["M ", coord]
+        :inner -> ["L ", coord]
         _ -> [acc, " L " | coord]
       end
     end)
   end
-  defp path(points, true) do
+  defp path(points, true, initial) do
     initial_window = {nil, nil, nil, nil}
 
     {_, window, last_p, result} =
-      Enum.reduce(points, {:first, initial_window, nil, ""}, fn p, {step, window, last_p, result} ->
+      Enum.reduce(points, {initial, initial_window, nil, ""}, fn p, {step, window, last_p, result} ->
         case step do
+          :inner ->
+            {:rest, bump_window({p, p, p, p}, p), p, []}
           :first ->
             {:second, {p, p, p, p}, p, []}
           :second ->
@@ -103,6 +115,8 @@ defmodule Statistic.SVG do
     opts_to_attrs(t, [[" phx-value-task=\"", "#{clean(val)}", "\""] | attrs])
   defp opts_to_attrs([{:fill, val} | t], attrs), do:
     opts_to_attrs(t, [[" style=\"fill:#", val, ";\""] | attrs])
+  defp opts_to_attrs([{:gradient, val} | t], attrs), do:
+    opts_to_attrs(t, [[" style=\"fill:url(#", val, ");\""] | attrs])
   defp opts_to_attrs([{:transparent, true} | t], attrs), do:
     opts_to_attrs(t, [[" fill=\"transparent\""] | attrs])
   defp opts_to_attrs([{:stroke, val} | t], attrs), do:

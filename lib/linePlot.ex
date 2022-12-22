@@ -51,20 +51,18 @@ defmodule Statistic.LinePlot do
 
     plot_options = Map.merge(@default_plot_options, plot_options)
 
-    x_axis_svg =
+    {x_axis_svg, grid_svg} =
       if plot_options.show_x_axis, do:
-        get_x_axis(x_scale, plot)
-        |> Axis.to_svg(),
-      else: ""
+        (x_axis = get_x_axis(x_scale, plot)
+        {Axis.to_svg(x_axis), Axis.gridlines_to_svg(x_axis)}),
+      else: {"", ""}
 
     y_axis_svg =
       if plot_options.show_y_axis, do:
-        Axis.new(y_scale, :left)
-        |> Axis.set_offset(get_option(plot, :width))
-        |> Axis.to_svg(),
+        Axis.new(y_scale, :left) |> Axis.set_offset(get_option(plot, :width)) |> Axis.to_svg(),
       else: ""
 
-    [x_axis_svg, y_axis_svg, "<g>", get_svg_lines(plot), "</g>"]
+      [x_axis_svg, y_axis_svg, grid_svg, "<g>", get_svg_lines(plot), "</g>"]
   end
 
   defp get_x_axis(x_scale, plot) do
@@ -98,7 +96,9 @@ defmodule Statistic.LinePlot do
     stroke_width = get_option(plot, :stroke_width)
 
     options = [transparent: true, stroke: colour, stroke_width: stroke_width, stroke_linejoin: "round"]
-
+    start_point = case data do [[x, y] | _] -> [{transforms.x.(x), transforms.y.(y)}, {transforms.x.(x), transforms.y.(0)}]; _ -> [] end
+    end_point = case :lists.reverse(data) do [[x, y] | _] -> [{transforms.x.(x), transforms.y.(0)}, {transforms.x.(x), transforms.y.(y)}]; _ -> [] end
+    
     points_list =
       data
       |> Stream.map(fn row ->
@@ -117,8 +117,16 @@ defmodule Statistic.LinePlot do
       |> Enum.chunk_by(fn {_, y} -> is_nil(y) end)
       |> Enum.filter(fn [{_, y} | _] -> not is_nil(y) end)
 
-    Enum.map(points_list, fn points -> line(points, smooth, options) end)
+    gradient("line_gradient", [{0, "lineplot-gradient-1"}, {100, "lineplot-gradient-2"}]) ++
+      Enum.map(points_list, fn points -> line(points, smooth, options) end) ++
+        [[{end_point, false, :first}, {:lists.flatten(points_list), smooth, :inner}, {start_point, false, :inner}]
+          |> line(smooth, [class: "lineplot-fill", gradient: "line_gradient"])]
   end
+
+  defp gradient(id, stops), do:
+    ["<linearGradient id=\"#{id}\" x1=\"0\" x2=\"0\" y1=\"0\" y2=\"1\">"] ++
+      :lists.map(fn {offset, class} -> "<stop offset=\"#{offset}%\", class=\"#{class}\"/>" end, stops) ++
+    ["</linearGradient>"]
 
   def prepare_scales(%LinePlot{} = plot) do
     plot
@@ -153,12 +161,12 @@ defmodule Statistic.LinePlot do
     y_scale =
       case custom_y_scale do
         nil ->
-          {min, max} =
+          {_min, max} =
             get_overall_domain(dataset, y_col_names)
             |> Utils.fixup_value_range()
 
           ContinuousLinearScale.new()
-          |> ContinuousLinearScale.domain(min, max)
+          |> ContinuousLinearScale.domain(0, max)
           |> Scale.set_range(height, 0)
         _ -> custom_y_scale |> Scale.set_range(height, 0)
       end
