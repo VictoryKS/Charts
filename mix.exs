@@ -4,7 +4,7 @@ defmodule Contex.MixProject do
   def project do
     [
       app: :charts,
-      version: "1.1.1",
+      version: "1.12.1",
       elixir: "~> 1.9",
       description: "Charts library for Elixir",
       package: package(),

@@ -39,7 +39,7 @@ defmodule Statistic.SVG do
     ["<path d=\"", path, "\"", attrs, "></path>"]
   end
 
-  defp path([], _, initial \\ :first)
+  defp path(points, smoothed, initial \\ :first)
   defp path([], _, _), do: ""
   defp path(points, false, initial) do
     Enum.reduce(points, initial, fn {x, y}, acc ->
