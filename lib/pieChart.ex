@@ -76,9 +76,8 @@ defmodule Statistic.PieChart do
       case inner_text do
         [] -> []
         x ->
-          ["<circle r=\"#{r / 6}\" cx=\"#{r}\" cy=\"#{r}\" fill=\"transparent\" " <>
-            "stroke=\"white\" " <>
-            "stroke-width=\"#{2 * r / 3}\">" <>
+          ["<circle r=\"#{r / 2}\" cx=\"#{r}\" cy=\"#{r}\" fill=\"white\" " <>
+            "stroke=\"white\">" <>
            "</circle>" <>
            "<text x=\"#{r}\" y=\"#{r}\" " <>
              "text-anchor=\"middle\" " <>

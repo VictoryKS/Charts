@@ -257,29 +257,16 @@ defmodule Statistic.BarChart do
   defp get_bar_rect_coords(:horizontal, cat_band, bar_extents), do: {bar_extents, cat_band}
   defp get_bar_rect_coords(:vertical, cat_band, bar_extents), do: {cat_band, bar_extents}
 
-  defp get_svg_bar_label(:horizontal, {_, bar_end} = bar, label, cat_band, _) do
+  defp get_svg_bar_label(:horizontal, bar, label, cat_band, _) do
     text_y = midpoint(cat_band)
-    width = width(bar)
-
-    {text_x, class, anchor} =
-      case width < 50 do
-        true -> {bar_end + 2, "exc-barlabel-out", "start"}
-        _ -> {midpoint(bar), "exc-barlabel-in", "middle"}
-      end
-
-    text(text_x, text_y, label, text_anchor: anchor, class: class, dominant_baseline: "central")
+    text_x = midpoint(bar)
+    text(text_x, text_y, label, text_anchor: "middle", class: "exc-barlabel-in", dominant_baseline: "central")
   end
-  defp get_svg_bar_label(_, {bar_start, _} = bar, label, cat_band, _) do
+  defp get_svg_bar_label(_, {_bar_start, bar_end} = _bar, label, cat_band, _) do
     text_x = midpoint(cat_band)
+    text_y = bar_end - 3
     label = if label == "0", do: "", else: label
-
-    {text_y, class} =
-      case width(bar) > 20 do
-        true -> {midpoint(bar), "exc-barlabel-in"}
-        _ -> {bar_start - 10, "exc-barlabel-out"}
-      end
-
-    text(text_x, text_y, label, text_anchor: "middle", class: class)
+    text(text_x, text_y, label, text_anchor: "middle", class: "exc-barlabel-out")
   end
 
 
@@ -368,5 +355,4 @@ defmodule Statistic.BarChart do
     Keyword.get(options, key)
 
   defp midpoint({a, b}), do: (a + b) / 2.0
-  defp width({a, b}), do: abs(a - b)
 end
